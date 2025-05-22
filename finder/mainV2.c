@@ -16,16 +16,16 @@ unsigned int readAsInt(FILE *fptr, unsigned int *globalPos) {
   unsigned int res = 0;
   res |= fgetc(fptr) << 24;
   ++(*globalPos);
-  fseek(fptr, *globalPos, 0);
+  //fseek(fptr, *globalPos, 0);
   res |= fgetc(fptr) << 16;
   ++(*globalPos);
-  fseek(fptr, *globalPos, 0);
+  //fseek(fptr, *globalPos, 0);
   res |= fgetc(fptr) << 8;
   ++(*globalPos);
-  fseek(fptr, *globalPos, 0);
+  //fseek(fptr, *globalPos, 0);
   res |= fgetc(fptr);
   ++(*globalPos);
-  fseek(fptr, *globalPos, 0);
+  //fseek(fptr, *globalPos, 0);
   return res;
 }
 
@@ -43,7 +43,7 @@ void AddWordsFromFile(char*** words, char* fileName, unsigned int* countGroups) 
   //printf("%i\n", *countGroups);
   (*words) = (char**)malloc((*countGroups) * sizeof(char*));
   for (unsigned int groupN = 0; groupN < *countGroups; ++groupN) {
-    fseek(fptr, globalPos, 0);
+    //fseek(fptr, globalPos, 0);
     //printf("globalPos=%6i: %6i (diff=%6i)\n", globalPos, ftell(fptr), globalPos - ftell(fptr));
     unsigned int countWords = readAsInt(fptr, &globalPos);
     unsigned int lenWords = readAsInt(fptr, &globalPos);
@@ -58,7 +58,7 @@ void AddWordsFromFile(char*** words, char* fileName, unsigned int* countGroups) 
       (*words)[groupN][i] = fgetc(fptr);
       ++globalPos;
       //printf(num2charEN((*words)[groupN][i]));
-      fseek(fptr, globalPos, 0);
+      //fseek(fptr, globalPos, 0);
     };
     //printf("\n");
     //globalPos += countWords * lenWords;
@@ -72,7 +72,10 @@ void printMap(unsigned int sizex, unsigned int sizey, char** map) {
   for (unsigned int x = 0; x < sizex; ++x) {
     for (unsigned int y = 0; y < sizey; ++y) {
       if (map[x][y]) {
-        printf("\033[92m%s\033[m ", num2charEN(map[x][y]));
+        printf("\033[92m");
+        //printf(num2charEN(map[x][y]));
+        wprintf(num2charRU(map[x][y]));
+        printf("\033[m ");
       } else {
         printf("\033[91m*\033[m ");
       }
@@ -171,19 +174,19 @@ void test2() {
       map[x1][y1] = 0;
     }
   }
-  /*For EN (5x5) took 29.578 s on 'findMaxWord'*/map[2][0] = 8; map[2][1] = 9; map[2][2] = 7; map[2][3] = 8; map[2][4] = 20; map[1][1] = 20; map[1][2] = 8;
+  ///*For EN (5x5) took 29.578 s on 'findMaxWord'*/map[2][0] = 8; map[2][1] = 9; map[2][2] = 7; map[2][3] = 8; map[2][4] = 20; map[1][1] = 20; map[1][2] = 8;
   ///*For EN (7x7)*/map[3][0] = 15; map[3][1] = 21; map[3][2] = 20; map[3][3] = 7; map[3][4] = 18; map[3][5] = 15; map[3][6] = 23;
   ///*For RU*/map[2][0] = 20; map[2][1] = 6; map[2][2] = 19; map[2][3] = 1; map[2][4] = 3;  // тесав
 
   printf("Reading from a file...\n");
   char** words;
   unsigned int countGroups = 0;
-  AddWordsFromFile(&words, "wordsEN24C.txt", &countGroups);
+  AddWordsFromFile(&words, "wordsRU24C.txt", &countGroups);
   --countGroups;
   printf("Word from a file are read!\n");
   printf("Creating Tries...\n");
   void* triesWords;
-  createTries(&triesWords, words, countGroups, countCharsEN+1);
+  createTries(&triesWords, words, countGroups, countCharsRU+1);
   printf("Tries created!\n");
   //showTrie(triesWords, 3);
   int exitcodeExclude;
@@ -209,7 +212,10 @@ void test2() {
   char exitcodeWord;
   unsigned int score = 0;
 
-  unsigned int freeSpaces = 1;//(sizex - 1) * sizey;
+  unsigned int freeSpaces = (sizex - 1) * sizey;
+
+  setRandomWord(sizex, sizey, &map, words, countGroups);
+  printMap(sizex, sizey, map);
 
   wprintf(L"Hi!\nПривет!\n");
   wprintf(L"こんにちは!\n");
@@ -222,7 +228,7 @@ void test2() {
     start = clock();
     //findMaxWord(&bestLen, &bestWord, &bestPosX, &bestPosY, &bestChar, &bestPathX, &bestPathY, &exitcodeWord, sizex, sizey, map, charsEN, countCharsEN, words, countGroups, maxWordLength);
     // ^ score = 97 in 30.624s
-    //findMaxWordTrie(&bestLen, &bestWord, &bestPosX, &bestPosY, &bestChar, &bestPathX, &bestPathY, &exitcodeWord, sizex, sizey, map, charsEN, countCharsEN, triesWords, maxWordLength);
+    findMaxWordTrie(&bestLen, &bestWord, &bestPosX, &bestPosY, &bestChar, &bestPathX, &bestPathY, &exitcodeWord, sizex, sizey, map, charsRU, countCharsRU, triesWords, maxWordLength);
     // ^ score = 86 in 2.802s
     //predict(&bestLen, &bestWord, &bestPosX, &bestPosY, &bestChar, &bestPathX, &bestPathY, &exitcodeWord, sizex, sizey, map, charsEN, countCharsEN, words, countGroups, maxWordLength, 0, 0);
     // ^ score = ? in ?s
@@ -234,11 +240,11 @@ void test2() {
     if (exitcodeWord == 1) {
       printf("%i\n", bestLen);
       printf("%i %i ", bestPosX, bestPosY);
-      printf(num2charEN(bestChar));
-      //wprintf(num2charRU(bestChar));
+      //printf(num2charEN(bestChar));
+      wprintf(num2charRU(bestChar));
       printf(" (%2i)\n", bestChar);
-      for (unsigned int j = 0; j < bestLen; ++j) printf(num2charEN(bestWord[j]));
-      //for (unsigned int j = 0; j < bestLen; ++j) wprintf(num2charRU(bestWord[j]));
+      //for (unsigned int j = 0; j < bestLen; ++j) printf(num2charEN(bestWord[j]));
+      for (unsigned int j = 0; j < bestLen; ++j) wprintf(num2charRU(bestWord[j]));
       printf(" (");
       for (unsigned int j = 0; j < bestLen; ++j) printf("%2i,", bestWord[j]);
       printf(")\n");
@@ -277,6 +283,7 @@ void test2() {
 
 
 int main() {
-  char *locale = setlocale(LC_ALL, "");
+  char *locale = setlocale(LC_ALL, "Russian");
+  srand((unsigned int)time(NULL));
   test2();
 }

@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <locale.h>
 #include <wchar.h>
+#include <math.h>
 
 
 char* num2charEN(int num) {
@@ -134,6 +135,7 @@ wchar_t* num2charRU(int num) {
       return L" ";
   }
 }
+double random() {return (double)rand()/(double)(RAND_MAX);}
 
 
 struct Candidate {
@@ -178,7 +180,7 @@ void createTries(struct TrieNode** result, char** words, unsigned int countWordG
     unsigned int countWords = *(unsigned int*)words[groupId];
     struct TrieNode* groupNode = &((*result)->children[wordsLength]);
     char* newWords = words[groupId] + 8;
-    printf("doing for: %2i\n", wordsLength);
+    //printf("doing for: %2i\n", wordsLength);
     for (unsigned int wordId = 0; wordId < countWords; ++wordId) {
       char* word = &newWords[wordId * wordsLength];
       struct TrieNode* currentNode = groupNode;
@@ -272,7 +274,7 @@ void excludeWordTrie(int *exitcode, char* word, unsigned int thisWordLength, str
   *exitcode = 0;
   struct TrieNode* currentNode = &((*words)->children[thisWordLength]);
   for (unsigned int k = 0; k < thisWordLength; ++k) {
-    if (currentNode->hasChildren == 0 && k < thisWordLength - 1) {
+    if (currentNode->hasChildren == 0) {
       *exitcode = k + 2;
       return;
     }
@@ -281,6 +283,20 @@ void excludeWordTrie(int *exitcode, char* word, unsigned int thisWordLength, str
   currentNode->hasChildren = 0;
   *exitcode = 1;
   return;
+}
+
+
+void setRandomWord(unsigned int sizex, unsigned int sizey, char*** map, char** words, unsigned int countWordGroups) {
+  for (unsigned int groupId = 0; groupId < countWordGroups; ++groupId) {
+    unsigned int wordsLength = *(unsigned int*)(words[groupId] + 4);
+    if (wordsLength != sizey) continue;
+    unsigned int countWords = *(unsigned int*)words[groupId];
+    unsigned int wordId = random()*countWords;
+    for (unsigned int y = 0; y < sizey; ++y) {
+      (*map)[sizex/2][y] = words[groupId][wordId*wordsLength+8+y];
+    }
+    break;
+  }
 }
 
 
@@ -733,12 +749,12 @@ void excludeWord(int *exitcode, char* word, unsigned int thisWordLength, char***
         }
       }
       if (add) {
-        printf("len=%2i, index=%5i:\n", wordsLength, index);
+        //printf("len=%2i, index=%5i:\n", wordsLength, index);
         --countWords;
         for (unsigned int k = 0; k < thisWordLength; ++k) {
-          printf("%2i (%s) -> ", newWord[k], num2charEN(newWord[k]));
+          //printf("%2i (%s) -> ", newWord[k], num2charEN(newWord[k]));
           newWord[k] = newWords[countWords * wordsLength + k];
-          printf("%2i (%s)\n", newWord[k], num2charEN(newWord[k]));
+          //printf("%2i (%s)\n", newWord[k], num2charEN(newWord[k]));
         }
         //printf("%i ", sizeof(newWords));
         newWords = (char*)realloc(newWords - 8, countWords * wordsLength * sizeof(char) + 8);

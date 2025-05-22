@@ -58,8 +58,8 @@ void printMap(unsigned int sizex, unsigned int sizey, char** map) {
 void game() {
   clock_t start, stop;
 
-  unsigned int sizex = 9;
-  unsigned int sizey = 9;
+  unsigned int sizex = 5;
+  unsigned int sizey = 5;
   char* charsEN = (char*)malloc(26*sizeof(char));
   for (unsigned int i = 0; i < 26; ++i) charsEN[i] = i+1;
   charsEN[25] = 27;
@@ -159,7 +159,7 @@ void game() {
     printMap(sizex, sizey, map);
   }
 
-  double worstTimeSeconds = worstTime / CLOCKS_PER_SEC;
+  double worstTimeSeconds = (double)worstTime / CLOCKS_PER_SEC;
   printf("Worst time was: %2ih %2im %2is %3ims (%i clocks).\n", (int)(worstTimeSeconds/3600), (int)(worstTimeSeconds/60)%60, (int)(worstTimeSeconds)%60, (int)(worstTimeSeconds*1000.0F)%1000, worstTime);
   printf("Max ever found length: %i.\n", highestLen);
 

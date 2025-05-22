@@ -3,6 +3,7 @@
 #include <locale.h>
 #include <wchar.h>
 #include <math.h>
+#include <pthread.h>
 
 
 char* num2charEN(int num) {
@@ -143,6 +144,29 @@ struct Candidate {
   unsigned int x, y, len;
   unsigned int *pathX, *pathY;
   char ch;
+};
+
+
+struct ThreadControl {
+  pthread_mutex_t mutex;
+  int *need_exit;
+};
+
+
+struct FindPathTrieArgs {
+  struct ThreadControl control;
+  unsigned int x, y;
+  char* exitcode;  // Protected by 'mutex'
+  struct TrieNode* words;
+  unsigned int wordLength;
+  unsigned int sizex;
+  unsigned int sizey;
+  char** map;
+  unsigned int addx;
+  unsigned int addy;
+  unsigned int** pathXRes;  // Protected by 'mutex'
+  unsigned int** pathYRes;  // Protected by 'mutex'
+  char** wordRes;  // Protected by 'mutex'
 };
 
 
@@ -776,27 +800,8 @@ void excludeWord(int *exitcode, char* word, unsigned int thisWordLength, char***
 void findMaxWordThread();
 
 
-void findPathTrie(char* exitcode, struct TrieNode* words, unsigned int wordLength, unsigned int sizex, unsigned int sizey, char** map, unsigned int addx, unsigned int addy, unsigned int** pathXRes, unsigned int** pathYRes, char** wordRes) {
-  unsigned int* posesX = (unsigned int*)malloc(sizex * sizey * sizeof(unsigned int));
-  unsigned int* posesY = (unsigned int*)malloc(sizex * sizey * sizeof(unsigned int));
-  unsigned int ind = 0;
-
-  // find all possitions with non-zero values (where letters are).
-  for (unsigned int x = 0; x < sizex; ++x) {
-    for (unsigned int y = 0; y < sizey; ++y) {
-      if (map[x][y]) {
-        posesX[ind] = x;
-        posesY[ind] = y;
-        ++ind;
-      }
-    }
-  }
-
-  if (ind == 0) {
-    *exitcode = 0;
-    free(posesX); free(posesY);
-    return;
-  }
+void* findPathTrieThread(void *vargp) {
+  struct FindPathTrieArgs* args = (struct FindPathTrieArgs*)vargp;
 
   struct QueueElement {
     unsigned int x;
@@ -816,210 +821,236 @@ void findPathTrie(char* exitcode, struct TrieNode* words, unsigned int wordLengt
   };
 
   struct Queue queue;
-  queue.size = sizex * sizey * sizex * sizey;  // wordLength * wordLength;  // Might be larger, needs testing.
+  queue.size = args->sizex * args->sizey * args->sizex * args->sizey;
   queue.start = 0;
   queue.end = 0;
   queue.elements = (struct QueueElement*)malloc(queue.size * sizeof(struct QueueElement));
-  if (!queue.elements) {
-    *exitcode = 5;
-    goto cleanup;
-  }
+  if (!queue.elements) goto cleanup;
   for (unsigned int i = 0; i < queue.size; ++i) {
-    queue.elements[i].pathX = (unsigned int*)malloc(wordLength * sizeof(unsigned int));
-    if (!queue.elements[i].pathX) {
-      *exitcode = 5;
-      goto cleanup;
+    queue.elements[i].pathX = (unsigned int*)malloc((args->wordLength + 1) * sizeof(unsigned int));
+    if (!queue.elements[i].pathX) goto cleanup;
+    queue.elements[i].pathY = (unsigned int*)malloc((args->wordLength + 1) * sizeof(unsigned int));
+    if (!queue.elements[i].pathY) goto cleanup;
+    queue.elements[i].visited = malloc(args->sizex * sizeof(char*));
+    if (!queue.elements[i].visited)  goto cleanup;
+    for (unsigned int x = 0; x < args->sizex; ++x) {
+      queue.elements[i].visited[x] = malloc(args->sizey * sizeof(char));
+      if (!queue.elements[i].visited[x]) goto cleanup;
     }
-    queue.elements[i].pathY = (unsigned int*)malloc(wordLength * sizeof(unsigned int));
-    if (!queue.elements[i].pathY) {
-      *exitcode = 5;
-      goto cleanup;
+  }
+  queue.start = 0;
+  queue.end = 0;
+  // begin queue with each position
+  ++queue.end;
+  queue.elements[0].x = args->x;
+  queue.elements[0].y = args->y;
+  queue.elements[0].idx = 0;
+  queue.elements[0].trie = args->words;
+  for (unsigned int x = 0; x < args->sizex; ++x) {
+    for (unsigned int y = 0; y < args->sizey; ++y) {
+      if (args->map[x][y]) {
+        queue.elements[0].visited[x][y] = 0;
+      } else {
+        queue.elements[0].visited[x][y] = 1;
+      }
     }
-    queue.elements[i].visited = malloc(sizex * sizeof(char*));
-    if (!queue.elements[i].visited) {
-      *exitcode = 5;
-      goto cleanup;
+  }
+  struct QueueElement thisElement;
+  while (queue.start != queue.end) {
+    //printf("locking mutex\n");
+    //pthread_mutex_lock(&(args->control.mutex));
+    //printf("locked mutex\n");
+    //int need_exit = *(args->control.need_exit);
+    //printf("read value\n");
+    //pthread_mutex_unlock(&(args->control.mutex));
+    //printf("unlocked mutex\n");
+    //if (need_exit) goto cleanup;
+    thisElement = queue.elements[queue.start];
+    if (thisElement.visited[thisElement.x][thisElement.y]) {
+      queue.start = (queue.start + 1) % queue.size;
+      continue;
     }
-    for (unsigned int x = 0; x < sizex; ++x) {
-      queue.elements[i].visited[x] = malloc(sizey * sizeof(char));
-      if (!queue.elements[i].visited[x]) {
-        *exitcode = 5;
+    thisElement.visited[thisElement.x][thisElement.y] = 1;
+    thisElement.pathX[thisElement.idx] = thisElement.x;
+    thisElement.pathY[thisElement.idx] = thisElement.y;
+    if (thisElement.idx == args->wordLength) {
+      char add = 0;
+      struct TrieNode* currentNode = args->words;
+      for (unsigned int j = 0; j <= args->wordLength; ++j) {
+        if (thisElement.pathX[j] == args->addx && thisElement.pathY[j] == args->addy) {
+          add = 1;
+        }
+        if (currentNode->hasChildren == 0 && j < args->wordLength) {
+          add = 0;
+          break;
+        } else if ((currentNode->children[args->map[thisElement.pathX[j]][thisElement.pathY[j]]]).hasChildren == 0) {
+          add = 0;
+          break;
+        }
+        currentNode = &(currentNode->children[args->map[thisElement.pathX[j]][thisElement.pathY[j]]]);
+      }
+      if (add) {
+        //pthread_mutex_lock(&(args->control.mutex));
+        printf("Found sollution with len=%i\n", args->wordLength+1);
+        *(args->exitcode) = 1;
+        *(args->pathXRes) = (unsigned int*)malloc((args->wordLength+1) * sizeof(unsigned int));
+        *(args->pathYRes) = (unsigned int*)malloc((args->wordLength+1) * sizeof(unsigned int));
+        for (unsigned int j = 0; j <= args->wordLength; ++j) {
+          (*(args->pathXRes))[j] = thisElement.pathX[j];
+          (*(args->pathYRes))[j] = thisElement.pathY[j];
+          (*(args->wordRes))[j] = args->map[thisElement.pathX[j]][thisElement.pathY[j]];
+        }
+        //*(args->control.need_exit) = 1;
+        //pthread_mutex_unlock(&(args->control.mutex));
         goto cleanup;
       }
+      queue.start = (queue.start + 1) % queue.size;
+      continue;
     }
-  }
-  --wordLength;  // to account that indexes start with 0.
-
-  for (unsigned int i = 0; i < ind; ++i) {
-    //printf("Setuping new queue.\n");
-    unsigned int x = posesX[i];
-    unsigned int y = posesY[i];
-    queue.start = 0;
-    queue.end = 0;
-    // begin queue with each position
-    ++queue.end;
-    queue.elements[0].x = x;
-    queue.elements[0].y = y;
-    queue.elements[0].idx = 0;
-    queue.elements[0].trie = words;
-    for (unsigned int x = 0; x < sizex; ++x) {
-      for (unsigned int y = 0; y < sizey; ++y) {
-        if (map[x][y]) {
-          queue.elements[0].visited[x][y] = 0;
-        } else {
-          queue.elements[0].visited[x][y] = 1;
+    ++thisElement.idx;
+    unsigned int newx, newy;
+    newx = thisElement.x + 1;
+    if (newx < args->sizex) {
+      if ((*thisElement.trie).children[args->map[newx][thisElement.y]].hasChildren && thisElement.visited[newx][thisElement.y] == 0) {
+        queue.elements[queue.end].x = newx;
+        queue.elements[queue.end].y = thisElement.y;
+        queue.elements[queue.end].trie = &((*thisElement.trie).children[args->map[newx][thisElement.y]]);
+        queue.elements[queue.end].idx = thisElement.idx;
+        for (unsigned int j = 0; j < thisElement.idx; ++j) {
+          queue.elements[queue.end].pathX[j] = thisElement.pathX[j];
+          queue.elements[queue.end].pathY[j] = thisElement.pathY[j];
         }
+        for (unsigned int x = 0; x < args->sizex; ++x) {
+          for (unsigned int y = 0; y < args->sizey; ++y) {
+            queue.elements[queue.end].visited[x][y] = thisElement.visited[x][y];
+          }
+        }
+        queue.end = (queue.end + 1) % queue.size;
       }
     }
-    struct QueueElement thisElement;
-    while (queue.start != queue.end) {
-      thisElement = queue.elements[queue.start];
-      if (thisElement.visited[thisElement.x][thisElement.y]) {
-        queue.start = (queue.start + 1) % queue.size;
-        continue;
+    newy = thisElement.y + 1;
+    if (newy < args->sizey) {
+      if ((*thisElement.trie).children[args->map[thisElement.x][newy]].hasChildren && thisElement.visited[thisElement.x][newy] == 0) {
+        queue.elements[queue.end].x = thisElement.x;
+        queue.elements[queue.end].y = newy;
+        queue.elements[queue.end].trie = &((*thisElement.trie).children[args->map[thisElement.x][newy]]);
+        queue.elements[queue.end].idx = thisElement.idx;
+        for (unsigned int j = 0; j < thisElement.idx; ++j) {
+          queue.elements[queue.end].pathX[j] = thisElement.pathX[j];
+          queue.elements[queue.end].pathY[j] = thisElement.pathY[j];
+        }
+        for (unsigned int x = 0; x < args->sizex; ++x) {
+          for (unsigned int y = 0; y < args->sizey; ++y) {
+            queue.elements[queue.end].visited[x][y] = thisElement.visited[x][y];
+          }
+        }
+        queue.end = (queue.end + 1) % queue.size;
       }
-      thisElement.visited[thisElement.x][thisElement.y] = 1;
-      thisElement.pathX[thisElement.idx] = thisElement.x;
-      thisElement.pathY[thisElement.idx] = thisElement.y;
-      if (thisElement.idx == wordLength) {
-        char add = 0;
-        struct TrieNode* currentNode = words;
-        for (unsigned int j = 0; j <= wordLength; ++j) {
-          if (thisElement.pathX[j] == addx && thisElement.pathY[j] == addy) {
-            add = 1;
-          }
-          if (currentNode->hasChildren == 0 && j < wordLength) {
-            add = 0;
-            break;
-          } else if ((currentNode->children[map[thisElement.pathX[j]][thisElement.pathY[j]]]).hasChildren == 0) {
-            add = 0;
-            break;
-          }
-          currentNode = &(currentNode->children[map[thisElement.pathX[j]][thisElement.pathY[j]]]);
+    }
+    if (thisElement.x > 0) {
+      newx = thisElement.x - 1;
+      if ((*thisElement.trie).children[args->map[newx][thisElement.y]].hasChildren && thisElement.visited[newx][thisElement.y] == 0) {
+        queue.elements[queue.end].x = newx;
+        queue.elements[queue.end].y = thisElement.y;
+        queue.elements[queue.end].trie = &((*thisElement.trie).children[args->map[newx][thisElement.y]]);
+        queue.elements[queue.end].idx = thisElement.idx;
+        for (unsigned int j = 0; j < thisElement.idx; ++j) {
+          queue.elements[queue.end].pathX[j] = thisElement.pathX[j];
+          queue.elements[queue.end].pathY[j] = thisElement.pathY[j];
         }
-        if (add) {
-          *exitcode = 1;
-          *pathXRes = (unsigned int*)malloc((wordLength+1) * sizeof(unsigned int));
-          *pathYRes = (unsigned int*)malloc((wordLength+1) * sizeof(unsigned int));
-          for (unsigned int j = 0; j <= wordLength; ++j) {
-            (*pathXRes)[j] = thisElement.pathX[j];
-            (*pathYRes)[j] = thisElement.pathY[j];
-            (*wordRes)[j] = map[thisElement.pathX[j]][thisElement.pathY[j]];
+        for (unsigned int x = 0; x < args->sizex; ++x) {
+          for (unsigned int y = 0; y < args->sizey; ++y) {
+            queue.elements[queue.end].visited[x][y] = thisElement.visited[x][y];
           }
-          goto cleanup;
-          return;
         }
-        queue.start = (queue.start + 1) % queue.size;
-        continue;
+        queue.end = (queue.end + 1) % queue.size;
       }
-      ++thisElement.idx;
-      unsigned int newx, newy;
-      newx = thisElement.x + 1;
-      if (newx < sizex) {
-        if ((*thisElement.trie).children[map[newx][thisElement.y]].hasChildren && thisElement.visited[newx][thisElement.y] == 0) {
-          queue.elements[queue.end].x = newx;
-          queue.elements[queue.end].y = thisElement.y;
-          queue.elements[queue.end].trie = &((*thisElement.trie).children[map[newx][thisElement.y]]);
-          queue.elements[queue.end].idx = thisElement.idx;
-          for (unsigned int j = 0; j < thisElement.idx; ++j) {
-            queue.elements[queue.end].pathX[j] = thisElement.pathX[j];
-            queue.elements[queue.end].pathY[j] = thisElement.pathY[j];
-          }
-          for (unsigned int x = 0; x < sizex; ++x) {
-            for (unsigned int y = 0; y < sizey; ++y) {
-              queue.elements[queue.end].visited[x][y] = thisElement.visited[x][y];
-            }
-          }
-          queue.end = (queue.end + 1) % queue.size;
+    }
+    if (thisElement.y > 0) {
+      newy = thisElement.y - 1;
+      if ((*thisElement.trie).children[args->map[thisElement.x][newy]].hasChildren && thisElement.visited[thisElement.x][newy] == 0) {
+        queue.elements[queue.end].x = thisElement.x;
+        queue.elements[queue.end].y = newy;
+        queue.elements[queue.end].trie = &((*thisElement.trie).children[args->map[thisElement.x][newy]]);
+        queue.elements[queue.end].idx = thisElement.idx;
+        for (unsigned int j = 0; j < thisElement.idx; ++j) {
+          queue.elements[queue.end].pathX[j] = thisElement.pathX[j];
+          queue.elements[queue.end].pathY[j] = thisElement.pathY[j];
         }
-      }
-      newy = thisElement.y + 1;
-      if (newy < sizey) {
-        if ((*thisElement.trie).children[map[thisElement.x][newy]].hasChildren && thisElement.visited[thisElement.x][newy] == 0) {
-          queue.elements[queue.end].x = thisElement.x;
-          queue.elements[queue.end].y = newy;
-          queue.elements[queue.end].trie = &((*thisElement.trie).children[map[thisElement.x][newy]]);
-          queue.elements[queue.end].idx = thisElement.idx;
-          for (unsigned int j = 0; j < thisElement.idx; ++j) {
-            queue.elements[queue.end].pathX[j] = thisElement.pathX[j];
-            queue.elements[queue.end].pathY[j] = thisElement.pathY[j];
+        for (unsigned int x = 0; x < args->sizex; ++x) {
+          for (unsigned int y = 0; y < args->sizey; ++y) {
+            queue.elements[queue.end].visited[x][y] = thisElement.visited[x][y];
           }
-          for (unsigned int x = 0; x < sizex; ++x) {
-            for (unsigned int y = 0; y < sizey; ++y) {
-              queue.elements[queue.end].visited[x][y] = thisElement.visited[x][y];
-            }
-          }
-          queue.end = (queue.end + 1) % queue.size;
         }
-      }
-      if (thisElement.x > 0) {
-        newx = thisElement.x - 1;
-        if ((*thisElement.trie).children[map[newx][thisElement.y]].hasChildren && thisElement.visited[newx][thisElement.y] == 0) {
-          queue.elements[queue.end].x = newx;
-          queue.elements[queue.end].y = thisElement.y;
-          queue.elements[queue.end].trie = &((*thisElement.trie).children[map[newx][thisElement.y]]);
-          queue.elements[queue.end].idx = thisElement.idx;
-          for (unsigned int j = 0; j < thisElement.idx; ++j) {
-            queue.elements[queue.end].pathX[j] = thisElement.pathX[j];
-            queue.elements[queue.end].pathY[j] = thisElement.pathY[j];
-          }
-          for (unsigned int x = 0; x < sizex; ++x) {
-            for (unsigned int y = 0; y < sizey; ++y) {
-              queue.elements[queue.end].visited[x][y] = thisElement.visited[x][y];
-            }
-          }
-          queue.end = (queue.end + 1) % queue.size;
-        }
-      }
-      if (thisElement.y > 0) {
-        newy = thisElement.y - 1;
-        if ((*thisElement.trie).children[map[thisElement.x][newy]].hasChildren && thisElement.visited[thisElement.x][newy] == 0) {
-          queue.elements[queue.end].x = thisElement.x;
-          queue.elements[queue.end].y = newy;
-          queue.elements[queue.end].trie = &((*thisElement.trie).children[map[thisElement.x][newy]]);
-          queue.elements[queue.end].idx = thisElement.idx;
-          for (unsigned int j = 0; j < thisElement.idx; ++j) {
-            queue.elements[queue.end].pathX[j] = thisElement.pathX[j];
-            queue.elements[queue.end].pathY[j] = thisElement.pathY[j];
-          }
-          for (unsigned int x = 0; x < sizex; ++x) {
-            for (unsigned int y = 0; y < sizey; ++y) {
-              queue.elements[queue.end].visited[x][y] = thisElement.visited[x][y];
-            }
-          }
-          queue.end = (queue.end + 1) % queue.size;
-        }
+        queue.end = (queue.end + 1) % queue.size;
       }
     }
   }
-  *exitcode = 0;
-
-  goto cleanup;
-  return;
-
   cleanup:
   for (unsigned int i = 0; i < queue.size; ++i) {
     free(queue.elements[i].pathX);
     free(queue.elements[i].pathY);
-    for (unsigned int x = 0; x < sizex; ++x) free(queue.elements[i].visited[x]);
+    for (unsigned int x = 0; x < args->sizex; ++x) free(queue.elements[i].visited[x]);
     free(queue.elements[i].visited);
   }
   free(queue.elements);
-  return;
-  cleanupSafe:
-  if (queue.elements) {
-    for (unsigned int i = 0; i < queue.size; ++i) {
-      if (queue.elements[i].pathX) free(queue.elements[i].pathX);
-      if (queue.elements[i].pathY) free(queue.elements[i].pathY);
-      if (queue.elements[i].visited) {
-        for (unsigned int x = 0; x < sizex; ++x) {
-          if (queue.elements[i].visited[x]) free(queue.elements[i].visited[x]);
-        }
-        free(queue.elements[i].visited);
+}
+
+
+void findPathTrie(char* exitcode, struct TrieNode* words, unsigned int wordLength, unsigned int sizex, unsigned int sizey, char** map, unsigned int addx, unsigned int addy, unsigned int** pathXRes, unsigned int** pathYRes, char** wordRes) {
+  unsigned int* posesX = (unsigned int*)malloc(sizex * sizey * sizeof(unsigned int));
+  unsigned int* posesY = (unsigned int*)malloc(sizex * sizey * sizeof(unsigned int));
+  unsigned int ind = 0;
+  *exitcode = 0;
+
+  // find all possitions with non-zero values (where letters are).
+  for (unsigned int x = 0; x < sizex; ++x) {
+    for (unsigned int y = 0; y < sizey; ++y) {
+      if (map[x][y]) {
+        posesX[ind] = x;
+        posesY[ind] = y;
+        ++ind;
       }
     }
-    free(queue.elements);
   }
+
+  if (ind == 0) {
+    free(posesX); free(posesY);
+    return;
+  }
+  --wordLength;  // to account that indexes start with 0.
+  pthread_t tids[ind];
+  int need_exit = 0;
+  pthread_mutex_t local_mutex = PTHREAD_MUTEX_INITIALIZER;
+  struct FindPathTrieArgs* args = (struct FindPathTrieArgs*)malloc(ind * sizeof(struct FindPathTrieArgs));
+
+  //printf("creating threads\n");
+  for (unsigned int i = 0; i < ind; ++i) {
+    args[i].x = posesX[i];
+    args[i].y = posesY[i];
+    args[i].control.mutex = local_mutex;
+    args[i].control.need_exit = &need_exit;
+    args[i].exitcode = exitcode;
+    args[i].words = words;
+    args[i].wordLength = wordLength;
+    args[i].sizex = sizex;
+    args[i].sizey = sizey;
+    args[i].map = map;
+    args[i].addx = addx;
+    args[i].addy = addy;
+    args[i].pathXRes = pathXRes;
+    args[i].pathYRes = pathYRes;
+    args[i].wordRes = wordRes;
+    pthread_create(&tids[i], NULL, findPathTrieThread, &args[i]);
+  }
+  //printf("created threads\n");
+  for (unsigned int i = 0; i < ind; ++i) {
+    pthread_join(tids[i], NULL);
+  }
+  //printf("joined threads\n");
+  free(posesX); free(posesY);
+  free(args);
+  pthread_mutex_destroy(&local_mutex);
 }
 
 

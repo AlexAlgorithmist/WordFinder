@@ -136,6 +136,14 @@ wchar_t* num2charRU(int num) {
 }
 
 
+struct Candidate {
+  char* word;
+  unsigned int x, y, len;
+  unsigned int *pathX, *pathY;
+  char ch;
+};
+
+
 struct TrieNode {
   struct TrieNode* children;
   unsigned int count;
@@ -671,11 +679,11 @@ void findMaxWord(unsigned int* bestLen, char** bestWord, unsigned int* bestPosX,
           if (exitcodePath) {
             *exitcode = 1;
             *bestLen = wordsLength;
-            printf("len=%2i, index=%5i:\n", wordsLength, wordId);
+            //printf("len=%2i, index=%5i:\n", wordsLength, wordId);
             for (unsigned int k = 0; k < wordsLength; ++k) {
-              printf("%2i (%s) -> ", (*bestWord)[k], num2charEN((*bestWord)[k]));
+              //printf("%2i (%s) -> ", (*bestWord)[k], num2charEN((*bestWord)[k]));
               (*bestWord)[k] = word[k];
-              printf("%2i (%s)\n", (*bestWord)[k], num2charEN((*bestWord)[k]));
+              //printf("%2i (%s)\n", (*bestWord)[k], num2charEN((*bestWord)[k]));
             }
             *bestPosX = x;
             *bestPosY = y;
@@ -798,29 +806,29 @@ void findPathTrie(char* exitcode, struct TrieNode* words, unsigned int wordLengt
   queue.elements = (struct QueueElement*)malloc(queue.size * sizeof(struct QueueElement));
   if (!queue.elements) {
     *exitcode = 5;
-    goto cleanupSafe;
+    goto cleanup;
   }
   for (unsigned int i = 0; i < queue.size; ++i) {
     queue.elements[i].pathX = (unsigned int*)malloc(wordLength * sizeof(unsigned int));
     if (!queue.elements[i].pathX) {
       *exitcode = 5;
-      goto cleanupSafe;
+      goto cleanup;
     }
     queue.elements[i].pathY = (unsigned int*)malloc(wordLength * sizeof(unsigned int));
     if (!queue.elements[i].pathY) {
       *exitcode = 5;
-      goto cleanupSafe;
+      goto cleanup;
     }
     queue.elements[i].visited = malloc(sizex * sizeof(char*));
     if (!queue.elements[i].visited) {
       *exitcode = 5;
-      goto cleanupSafe;
+      goto cleanup;
     }
     for (unsigned int x = 0; x < sizex; ++x) {
       queue.elements[i].visited[x] = malloc(sizey * sizeof(char));
       if (!queue.elements[i].visited[x]) {
         *exitcode = 5;
-        goto cleanupSafe;
+        goto cleanup;
       }
     }
   }
@@ -859,18 +867,11 @@ void findPathTrie(char* exitcode, struct TrieNode* words, unsigned int wordLengt
       thisElement.pathY[thisElement.idx] = thisElement.y;
       if (thisElement.idx == wordLength) {
         char add = 0;
-        //printf("Backtrace:\n");
-        //backtraceTrie(thisElement.trie, (void*)0);
-        //printf("\n");
         struct TrieNode* currentNode = words;
-        //printf("j up to %i:\n", wordLength);
         for (unsigned int j = 0; j <= wordLength; ++j) {
-          //printf("j=%i\n", j);
           if (thisElement.pathX[j] == addx && thisElement.pathY[j] == addy) {
             add = 1;
-            //break;
           }
-          ////if (wordLength == 2) showTrieDeep(*currentNode, wordLength, 1, 0, 0, -1);
           if (currentNode->hasChildren == 0 && j < wordLength) {
             add = 0;
             break;
@@ -884,16 +885,12 @@ void findPathTrie(char* exitcode, struct TrieNode* words, unsigned int wordLengt
           *exitcode = 1;
           *pathXRes = (unsigned int*)malloc((wordLength+1) * sizeof(unsigned int));
           *pathYRes = (unsigned int*)malloc((wordLength+1) * sizeof(unsigned int));
-          //printf("\nlen=%i:\n", wordLength+1);
           for (unsigned int j = 0; j <= wordLength; ++j) {
-            //printf("(%i %i) -> ", thisElement.pathX[j], thisElement.pathY[j]);
             (*pathXRes)[j] = thisElement.pathX[j];
             (*pathYRes)[j] = thisElement.pathY[j];
-            //printf("(%i %i) char -> ", (*pathXRes)[j], (*pathYRes)[j]);
             (*wordRes)[j] = map[thisElement.pathX[j]][thisElement.pathY[j]];
-            //printf("%s (%i)\n", num2charEN((*wordRes)[j]), (*wordRes)[j]);
           }
-          goto cleanupSafe;
+          goto cleanup;
           return;
         }
         queue.start = (queue.start + 1) % queue.size;
@@ -903,19 +900,6 @@ void findPathTrie(char* exitcode, struct TrieNode* words, unsigned int wordLengt
       unsigned int newx, newy;
       newx = thisElement.x + 1;
       if (newx < sizex) {
-        if (map[newx][thisElement.y] > (*thisElement.trie).count) {
-          fprintf(stderr, "\033[91m[E]\033[m index out of range (%i > %i)!\n", map[newx][thisElement.y], (*thisElement.trie).count);
-          *exitcode = 3;
-          goto cleanupSafe;
-          return;
-        }
-        if ((*thisElement.trie).children == NULL) {
-          fprintf(stderr, "\033[91m[E]\033[m tryed to access trie`s childer while they were not initialized!\n");
-          *exitcode = 4;
-          goto cleanupSafe;
-          return;
-        }
-        //printf("1 %i %i\n", (*thisElement.trie).children[map[newx][thisElement.y]].hasChildren, map[newx][thisElement.y]);
         if ((*thisElement.trie).children[map[newx][thisElement.y]].hasChildren && thisElement.visited[newx][thisElement.y] == 0) {
           queue.elements[queue.end].x = newx;
           queue.elements[queue.end].y = thisElement.y;
@@ -935,19 +919,6 @@ void findPathTrie(char* exitcode, struct TrieNode* words, unsigned int wordLengt
       }
       newy = thisElement.y + 1;
       if (newy < sizey) {
-        if (map[thisElement.x][newy] > (*thisElement.trie).count) {
-          fprintf(stderr, "\033[91m[E]\033[m index out of range (%i > %i)!\n", map[thisElement.x][newy], (*thisElement.trie).count);
-          *exitcode = 3;
-          goto cleanupSafe;
-          return;
-        }
-        if ((*thisElement.trie).children == NULL) {
-          fprintf(stderr, "\033[91m[E]\033[m tryed to access trie`s childer while they were not initialized!\n");
-          *exitcode = 4;
-          goto cleanupSafe;
-          return;
-        }
-        //printf("2 %i %i\n", (*thisElement.trie).children[map[newx][thisElement.y]].hasChildren, map[newx][thisElement.y]);
         if ((*thisElement.trie).children[map[thisElement.x][newy]].hasChildren && thisElement.visited[thisElement.x][newy] == 0) {
           queue.elements[queue.end].x = thisElement.x;
           queue.elements[queue.end].y = newy;
@@ -967,19 +938,6 @@ void findPathTrie(char* exitcode, struct TrieNode* words, unsigned int wordLengt
       }
       if (thisElement.x > 0) {
         newx = thisElement.x - 1;
-        if (map[newx][thisElement.y] > (*thisElement.trie).count) {
-          fprintf(stderr, "\033[91m[E]\033[m index out of range (%i > %i)!\n", map[newx][thisElement.y], (*thisElement.trie).count);
-          *exitcode = 3;
-          goto cleanupSafe;
-          return;
-        }
-        if ((*thisElement.trie).children == NULL) {
-          fprintf(stderr, "\033[91m[E]\033[m tryed to access trie`s childer while they were not initialized!\n");
-          *exitcode = 4;
-          goto cleanupSafe;
-          return;
-        }
-        //printf("3 %i %i\n", (*thisElement.trie).children[map[newx][thisElement.y]].hasChildren, map[newx][thisElement.y]);
         if ((*thisElement.trie).children[map[newx][thisElement.y]].hasChildren && thisElement.visited[newx][thisElement.y] == 0) {
           queue.elements[queue.end].x = newx;
           queue.elements[queue.end].y = thisElement.y;
@@ -999,19 +957,6 @@ void findPathTrie(char* exitcode, struct TrieNode* words, unsigned int wordLengt
       }
       if (thisElement.y > 0) {
         newy = thisElement.y - 1;
-        if (map[thisElement.x][newy] > (*thisElement.trie).count) {
-          fprintf(stderr, "\033[91m[E]\033[m index out of range (%i > %i)!\n", map[thisElement.x][newy], (*thisElement.trie).count);
-          *exitcode = 3;
-          goto cleanupSafe;
-          return;
-        }
-        if ((*thisElement.trie).children == NULL) {
-          fprintf(stderr, "\033[91m[E]\033[m tryed to access trie`s childer while they were not initialized!\n");
-          *exitcode = 4;
-          goto cleanupSafe;
-          return;
-        }
-        //printf("4 %i %i\n", (*thisElement.trie).children[map[newx][thisElement.y]].hasChildren, map[newx][thisElement.y]);
         if ((*thisElement.trie).children[map[thisElement.x][newy]].hasChildren && thisElement.visited[thisElement.x][newy] == 0) {
           queue.elements[queue.end].x = thisElement.x;
           queue.elements[queue.end].y = newy;
@@ -1029,17 +974,11 @@ void findPathTrie(char* exitcode, struct TrieNode* words, unsigned int wordLengt
           queue.end = (queue.end + 1) % queue.size;
         }
       }
-      if (queue.end == queue.start) {
-        fprintf(stderr, "\033[91m[E]\033[m Queue run out!\n");
-        *exitcode = 2;
-        goto cleanupSafe;
-        return;
-      }
     }
   }
   *exitcode = 0;
 
-  goto cleanupSafe;
+  goto cleanup;
   return;
 
   cleanup:
@@ -1052,7 +991,6 @@ void findPathTrie(char* exitcode, struct TrieNode* words, unsigned int wordLengt
   free(queue.elements);
   return;
   cleanupSafe:
-  //printf("Begin safe cleanup...\n");
   if (queue.elements) {
     for (unsigned int i = 0; i < queue.size; ++i) {
       if (queue.elements[i].pathX) free(queue.elements[i].pathX);
@@ -1066,9 +1004,7 @@ void findPathTrie(char* exitcode, struct TrieNode* words, unsigned int wordLengt
     }
     free(queue.elements);
   }
-  //printf("Safely cleaned up!\n");
 }
-
 
 
 void findMaxWordTrie(unsigned int* bestLen, char** bestWord, unsigned int* bestPosX, unsigned int* bestPosY, char* bestChar, unsigned int** bestPathX, unsigned int** bestPathY, char* exitcode, unsigned int sizex, unsigned int sizey, char** map, char* alphabet, unsigned int alphabetLength, struct TrieNode* words, unsigned int maxWordLength) {
@@ -1147,65 +1083,408 @@ void findMaxWordTrie(unsigned int* bestLen, char** bestWord, unsigned int* bestP
     char exitcodeMaxPath = 0;
     unsigned int maxPathLen = 0;
     findMaxPath(&exitcodeMaxPath, &maxPathLen, sizex, sizey, map);
-    //++maxPathLen;
-    //++maxPathLen;
-    //char** mapC = (char**)malloc(sizex*sizeof(char*));
-    //for (unsigned int x1 = 0; x1 < sizex; ++x1) {
-    //  map[x1] = (char*)malloc(sizey*sizeof(char));
-    //}
     for (unsigned int j = 0; j < alphabetLength; ++j) {
-      //for (unsigned int x1 = 0; x1 < sizex; ++x1) {
-      //  for (unsigned int y1 = 0; y1 < sizey; ++y1) {
-      //    mapC[x1][y1] = map[x1][y1];
-      //  }
-      //}
       map[x][y] = alphabet[j];
       for (unsigned int wordsLength = words->count - 1; wordsLength > 0; --wordsLength) {
-        //printf("Trying for: %i.\n", wordsLength);
         if (wordsLength <= *bestLen || wordsLength > maxPathLen || words->children[wordsLength].hasChildren == 0) continue;
-        //printf("Success: %i.\n", wordsLength);
         struct TrieNode* newWords = &(words->children[wordsLength]);
         unsigned int* pathXRes = NULL;
         unsigned int* pathYRes = NULL;
         char exitcodePath = 0;
-        //printf("Entering with wordsLength=%i\n", wordsLength);
         findPathTrie(&exitcodePath, newWords, wordsLength, sizex, sizey, map, x, y, &pathXRes, &pathYRes, bestWord);
-        //printf("exitcodePath=%i\n", exitcodePath);
-        if (exitcodePath == 5) {
-          fprintf(stderr, "\033[91m[E]\033[m something went wrong while making pointers.\n");
-        }
         if (exitcodePath == 1) {
           *exitcode = 1;
           *bestLen = wordsLength;
-          //printf("len=%2i: ", wordsLength);
-          //for (unsigned int k = 0; k < wordsLength; ++k) {
-          //  printf("%2i (%s) -> ", (*bestWord)[k], num2charEN((*bestWord)[k]));
-          //  (*bestWord)[k] = word[k];
-          //  printf("%2i (%s)\n", (*bestWord)[k], num2charEN((*bestWord)[k]));
-          //}
-          //for (unsigned int k = 0; k < wordsLength; ++k) printf("%s", num2charEN((*bestWord)[k]));
-          //printf("\n");
           *bestPosX = x;
-          //printf("1\n");
           *bestPosY = y;
-          //printf("1\n");
           *bestChar = alphabet[j];
-          //printf("1\n");
           for (unsigned int k = 0; k < wordsLength; ++k) {
             (*bestPathX)[k] = pathXRes[k];
             (*bestPathY)[k] = pathYRes[k];
           }
-          //printf("1\n");
-          //free(pathXRes);
-          //printf("1\n"); free(pathYRes);
-          //printf("1\n");
+          free(pathXRes); free(pathYRes);
           break;
         }
       }
-      //printf("Ended loop 1\n");
     }
     map[x][y] = 0;  // do not necessary but should be
   }
-  //free(posesX); free(posesY);
-  //*/
+  free(posesX); free(posesY);
+}
+
+
+void findAllPathesTrie(struct TrieNode* words, unsigned int wordLength, unsigned int sizex, unsigned int sizey, char** map, unsigned int addx, unsigned int addy, struct Candidate** candidates, unsigned int* candidatesCount) {
+  unsigned int* posesX = (unsigned int*)malloc(sizex * sizey * sizeof(unsigned int));
+  unsigned int* posesY = (unsigned int*)malloc(sizex * sizey * sizeof(unsigned int));
+  unsigned int ind = 0;
+
+  // find all possitions with non-zero values (where letters are).
+  for (unsigned int x = 0; x < sizex; ++x) {
+    for (unsigned int y = 0; y < sizey; ++y) {
+      if (map[x][y]) {
+        posesX[ind] = x;
+        posesY[ind] = y;
+        ++ind;
+      }
+    }
+  }
+
+  if (ind == 0) {
+    free(posesX); free(posesY);
+    return;
+  }
+
+  struct QueueElement {
+    unsigned int x;
+    unsigned int y;
+    unsigned int idx;
+    struct TrieNode* trie;
+    unsigned int* pathX;
+    unsigned int* pathY;
+    char** visited;
+  };
+
+  struct Queue {
+    unsigned int size;
+    unsigned int start;
+    unsigned int end;
+    struct QueueElement* elements;
+  };
+
+  struct Queue queue;
+  queue.size = sizex * sizey * sizex * sizey;
+  queue.start = 0;
+  queue.end = 0;
+  queue.elements = (struct QueueElement*)malloc(queue.size * sizeof(struct QueueElement));
+  if (!queue.elements) {
+    goto cleanup;
+  }
+  for (unsigned int i = 0; i < queue.size; ++i) {
+    queue.elements[i].pathX = (unsigned int*)malloc(wordLength * sizeof(unsigned int));
+    if (!queue.elements[i].pathX) {
+      goto cleanup;
+    }
+    queue.elements[i].pathY = (unsigned int*)malloc(wordLength * sizeof(unsigned int));
+    if (!queue.elements[i].pathY) {
+      goto cleanup;
+    }
+    queue.elements[i].visited = malloc(sizex * sizeof(char*));
+    if (!queue.elements[i].visited) {
+      goto cleanup;
+    }
+    for (unsigned int x = 0; x < sizex; ++x) {
+      queue.elements[i].visited[x] = malloc(sizey * sizeof(char));
+      if (!queue.elements[i].visited[x]) {
+        goto cleanup;
+      }
+    }
+  }
+  --wordLength;  // to account that indexes start with 0.
+
+  for (unsigned int i = 0; i < ind; ++i) {
+    unsigned int x = posesX[i];
+    unsigned int y = posesY[i];
+    queue.start = 0;
+    queue.end = 0;
+    // begin queue with each position
+    ++queue.end;
+    queue.elements[0].x = x;
+    queue.elements[0].y = y;
+    queue.elements[0].idx = 0;
+    queue.elements[0].trie = words;
+    for (unsigned int x = 0; x < sizex; ++x) {
+      for (unsigned int y = 0; y < sizey; ++y) {
+        if (map[x][y]) {
+          queue.elements[0].visited[x][y] = 0;
+        } else {
+          queue.elements[0].visited[x][y] = 1;
+        }
+      }
+    }
+    struct QueueElement thisElement;
+    while (queue.start != queue.end) {
+      thisElement = queue.elements[queue.start];
+      if (thisElement.visited[thisElement.x][thisElement.y]) {
+        queue.start = (queue.start + 1) % queue.size;
+        continue;
+      }
+      thisElement.visited[thisElement.x][thisElement.y] = 1;
+      thisElement.pathX[thisElement.idx] = thisElement.x;
+      thisElement.pathY[thisElement.idx] = thisElement.y;
+      if (thisElement.idx == wordLength) {
+        char add = 0;
+        struct TrieNode* currentNode = words;
+        for (unsigned int j = 0; j <= wordLength; ++j) {
+          if (thisElement.pathX[j] == addx && thisElement.pathY[j] == addy) {
+            add = 1;
+          }
+          if (currentNode->hasChildren == 0 && j < wordLength) {
+            add = 0;
+            break;
+          } else if ((currentNode->children[map[thisElement.pathX[j]][thisElement.pathY[j]]]).hasChildren == 0) {
+            add = 0;
+            break;
+          }
+          currentNode = &(currentNode->children[map[thisElement.pathX[j]][thisElement.pathY[j]]]);
+        }
+        if (add) {
+          (*candidates)[*candidatesCount].x = addx;
+          (*candidates)[*candidatesCount].y = addy;
+          (*candidates)[*candidatesCount].len = wordLength + 1;
+          (*candidates)[*candidatesCount].pathX = (unsigned int*)malloc((wordLength + 1) * sizeof(unsigned int));
+          (*candidates)[*candidatesCount].pathY = (unsigned int*)malloc((wordLength + 1) * sizeof(unsigned int));
+          (*candidates)[*candidatesCount].word = (char*)malloc((wordLength + 1) * sizeof(char));
+          (*candidates)[*candidatesCount].ch = map[addx][addy];
+          for (unsigned int k = 0; k <= wordLength; ++k) {
+            (*candidates)[*candidatesCount].pathX[k] = thisElement.pathX[k];
+            (*candidates)[*candidatesCount].pathY[k] = thisElement.pathY[k];
+            (*candidates)[*candidatesCount].word[k] = map[thisElement.pathX[k]][thisElement.pathY[k]];
+          }
+          ++(*candidatesCount);
+        }
+        queue.start = (queue.start + 1) % queue.size;
+        continue;
+      }
+      ++thisElement.idx;
+      unsigned int newx, newy;
+      newx = thisElement.x + 1;
+      if (newx < sizex) {
+        if ((*thisElement.trie).children[map[newx][thisElement.y]].hasChildren && thisElement.visited[newx][thisElement.y] == 0) {
+          queue.elements[queue.end].x = newx;
+          queue.elements[queue.end].y = thisElement.y;
+          queue.elements[queue.end].trie = &((*thisElement.trie).children[map[newx][thisElement.y]]);
+          queue.elements[queue.end].idx = thisElement.idx;
+          for (unsigned int j = 0; j < thisElement.idx; ++j) {
+            queue.elements[queue.end].pathX[j] = thisElement.pathX[j];
+            queue.elements[queue.end].pathY[j] = thisElement.pathY[j];
+          }
+          for (unsigned int x = 0; x < sizex; ++x) {
+            for (unsigned int y = 0; y < sizey; ++y) {
+              queue.elements[queue.end].visited[x][y] = thisElement.visited[x][y];
+            }
+          }
+          queue.end = (queue.end + 1) % queue.size;
+        }
+      }
+      newy = thisElement.y + 1;
+      if (newy < sizey) {
+        if ((*thisElement.trie).children[map[thisElement.x][newy]].hasChildren && thisElement.visited[thisElement.x][newy] == 0) {
+          queue.elements[queue.end].x = thisElement.x;
+          queue.elements[queue.end].y = newy;
+          queue.elements[queue.end].trie = &((*thisElement.trie).children[map[thisElement.x][newy]]);
+          queue.elements[queue.end].idx = thisElement.idx;
+          for (unsigned int j = 0; j < thisElement.idx; ++j) {
+            queue.elements[queue.end].pathX[j] = thisElement.pathX[j];
+            queue.elements[queue.end].pathY[j] = thisElement.pathY[j];
+          }
+          for (unsigned int x = 0; x < sizex; ++x) {
+            for (unsigned int y = 0; y < sizey; ++y) {
+              queue.elements[queue.end].visited[x][y] = thisElement.visited[x][y];
+            }
+          }
+          queue.end = (queue.end + 1) % queue.size;
+        }
+      }
+      if (thisElement.x > 0) {
+        newx = thisElement.x - 1;
+        if ((*thisElement.trie).children[map[newx][thisElement.y]].hasChildren && thisElement.visited[newx][thisElement.y] == 0) {
+          queue.elements[queue.end].x = newx;
+          queue.elements[queue.end].y = thisElement.y;
+          queue.elements[queue.end].trie = &((*thisElement.trie).children[map[newx][thisElement.y]]);
+          queue.elements[queue.end].idx = thisElement.idx;
+          for (unsigned int j = 0; j < thisElement.idx; ++j) {
+            queue.elements[queue.end].pathX[j] = thisElement.pathX[j];
+            queue.elements[queue.end].pathY[j] = thisElement.pathY[j];
+          }
+          for (unsigned int x = 0; x < sizex; ++x) {
+            for (unsigned int y = 0; y < sizey; ++y) {
+              queue.elements[queue.end].visited[x][y] = thisElement.visited[x][y];
+            }
+          }
+          queue.end = (queue.end + 1) % queue.size;
+        }
+      }
+      if (thisElement.y > 0) {
+        newy = thisElement.y - 1;
+        if ((*thisElement.trie).children[map[thisElement.x][newy]].hasChildren && thisElement.visited[thisElement.x][newy] == 0) {
+          queue.elements[queue.end].x = thisElement.x;
+          queue.elements[queue.end].y = newy;
+          queue.elements[queue.end].trie = &((*thisElement.trie).children[map[thisElement.x][newy]]);
+          queue.elements[queue.end].idx = thisElement.idx;
+          for (unsigned int j = 0; j < thisElement.idx; ++j) {
+            queue.elements[queue.end].pathX[j] = thisElement.pathX[j];
+            queue.elements[queue.end].pathY[j] = thisElement.pathY[j];
+          }
+          for (unsigned int x = 0; x < sizex; ++x) {
+            for (unsigned int y = 0; y < sizey; ++y) {
+              queue.elements[queue.end].visited[x][y] = thisElement.visited[x][y];
+            }
+          }
+          queue.end = (queue.end + 1) % queue.size;
+        }
+      }
+    }
+  }
+  cleanup:
+  for (unsigned int i = 0; i < queue.size; ++i) {
+    free(queue.elements[i].pathX);
+    free(queue.elements[i].pathY);
+    for (unsigned int x = 0; x < sizex; ++x) free(queue.elements[i].visited[x]);
+    free(queue.elements[i].visited);
+  }
+  free(queue.elements);
+  free(posesX); free(posesY);
+}
+
+
+void findAllWordsTrie(unsigned int* candidatesCount, struct Candidate** candidates, unsigned int sizex, unsigned int sizey, char** map, char* alphabet, unsigned int alphabetLength, struct TrieNode* words, unsigned int maxWordLength) {
+  unsigned int* posesX = (unsigned int*)malloc(sizex * sizey * sizeof(unsigned int));
+  unsigned int* posesY = (unsigned int*)malloc(sizex * sizey * sizeof(unsigned int));
+  unsigned int ind = 0;
+
+  // add all possition that are empty and have at least one non empty neighbor, so that we can place a letter.
+  for (unsigned int x = 0; x < sizex; ++x) {
+    for (unsigned int y = 0; y < sizey; ++y) {
+      if (map[x][y] == 0) {
+        if (x+1 < sizex) {
+          if (map[x+1][y]) {
+            char add = 1;
+            for (int i = 0; i < ind && add; ++i) {
+              if (x == posesX[i] && y == posesY[i]) add = 0;
+            }
+            if (add) {
+              posesX[ind] = x;
+              posesY[ind] = y;
+              ++ind;
+            }
+          }
+        }
+        if (y+1 < sizey) {
+          if (map[x][y+1]) {
+            char add = 1;
+            for (int i = 0; i < ind && add; ++i) {
+              if (x == posesX[i] && y == posesY[i]) add = 0;
+            }
+            if (add) {
+              posesX[ind] = x;
+              posesY[ind] = y;
+              ++ind;
+            }
+          }
+        }
+        if (x > 0) {
+          if (map[x-1][y]) {
+            char add = 1;
+            for (int i = 0; i < ind && add; ++i) {
+              if (x == posesX[i] && y == posesY[i]) add = 0;
+            }
+            if (add) {
+              posesX[ind] = x;
+              posesY[ind] = y;
+              ++ind;
+            }
+          }
+        }
+        if (y > 0) {
+          if (map[x][y-1]) {
+            char add = 1;
+            for (int i = 0; i < ind && add; ++i) {
+              if (x == posesX[i] && y == posesY[i]) add = 0;
+            }
+            if (add) {
+              posesX[ind] = x;
+              posesY[ind] = y;
+              ++ind;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  *candidatesCount = 0;
+  for (unsigned int i = 0; i < ind; ++i) {
+    unsigned int x = posesX[i];
+    unsigned int y = posesY[i];
+    map[x][y] = 255;
+    char exitcodeMaxPath = 0;
+    unsigned int maxPathLen = 0;
+    findMaxPath(&exitcodeMaxPath, &maxPathLen, sizex, sizey, map);
+    for (unsigned int j = 0; j < alphabetLength; ++j) {
+      map[x][y] = alphabet[j];
+      for (unsigned int wordsLength = words->count - 1; wordsLength > 0; --wordsLength) {
+        if (wordsLength > maxPathLen || words->children[wordsLength].hasChildren == 0) continue;
+        struct TrieNode* newWords = &(words->children[wordsLength]);
+        findAllPathesTrie(newWords, wordsLength, sizex, sizey, map, x, y, candidates, candidatesCount);
+      }
+    }
+    map[x][y] = 0;
+  }
+  free(posesX); free(posesY);
+}
+
+
+void predict(unsigned int* bestLen, char** bestWord, unsigned int* bestPosX, unsigned int* bestPosY, char* bestChar, unsigned int** bestPathX, unsigned int** bestPathY, char* exitcode, unsigned int sizex, unsigned int sizey, char** map, char* alphabet, unsigned int alphabetLength, char** words, unsigned int countWordGroups, unsigned int maxWordLength, unsigned int deep, unsigned int countOthers) {
+  // almost idk how to do it
+  struct QueueElement {
+    char **map;
+    struct TrieNode* wordsExclude;
+    unsigned int upToTurn;
+    struct Candidate* candidates;
+    unsigned int candidatesCount;
+  };
+
+  struct Queue {
+    unsigned int size;
+    unsigned int start;
+    unsigned int end;
+    struct QueueElement* elements;
+  };
+
+  unsigned int totalSize = 0;
+
+  struct Queue queue;
+  queue.size = sizex * sizey * sizex * sizey;
+  queue.start = 0;
+  queue.end = 0;
+  queue.elements = (struct QueueElement*)malloc(queue.size * sizeof(struct QueueElement));
+  totalSize += sizeof(queue);
+  totalSize += queue.size * sizeof(struct QueueElement);
+  if (!queue.elements) {
+    *exitcode = 5;
+    goto cleanup;
+  }
+  for (unsigned int i = 0; i < queue.size; ++i) {
+    queue.elements[i].candidates = (struct Candidate*)malloc(queue.size * sizeof(struct Candidate));
+    totalSize += queue.size * sizeof(struct Candidate);
+    if (!queue.elements[i].candidates) {
+      *exitcode = 5;
+      goto cleanup;
+    }
+    queue.elements[i].map = (char**)malloc(sizex * sizeof(char*));
+    totalSize += sizex * sizeof(char*);
+    if (!queue.elements[i].map) {
+      *exitcode = 5;
+      goto cleanup;
+    }
+    for (unsigned int x1 = 0; x1 < sizex; ++x1) {
+      queue.elements[i].map[x1] = (char*)malloc(sizey * sizeof(char));
+      totalSize += sizey * sizeof(char);
+      if (!queue.elements[i].map[x1]) {
+        *exitcode = 5;
+        goto cleanup;
+      }
+    }
+  }
+  printf("totalSize = %i (%f Mb)\n", totalSize, (double)totalSize/1024.0F/1024.0F);
+
+  cleanup:
+  for (unsigned int i = 0; i < queue.size; ++i) {
+    free(queue.elements[i].candidates);
+    for (unsigned int x1 = 0; x1 < sizex; ++x1) {
+      free(queue.elements[i].map[x1]);
+    }
+    free(queue.elements[i].map);
+  }
+  free(queue.elements);
 }

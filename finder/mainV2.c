@@ -198,7 +198,7 @@ void test2() {
   //for (;;);
   //return;
 
-  unsigned int maxWordLength = 25;
+  unsigned int maxWordLength = 30;
   unsigned int bestLen = 0;
   char* bestWord = (char*)malloc(maxWordLength * sizeof(char));
   unsigned int bestPosX = 0;
@@ -214,17 +214,22 @@ void test2() {
   wprintf(L"Hi!\nПривет!\n");
   wprintf(L"こんにちは!\n");
 
+  unsigned int timeAll = 0;
+
   startAll = clock();
   for (unsigned int i = 0; i < freeSpaces; ++i) {
     printf("Begin...\n");
     start = clock();
-    findMaxWord(&bestLen, &bestWord, &bestPosX, &bestPosY, &bestChar, &bestPathX, &bestPathY, &exitcodeWord, sizex, sizey, map, charsEN, countCharsEN, words, countGroups, maxWordLength);
-    // ^ score = 97 in 31s
+    //findMaxWord(&bestLen, &bestWord, &bestPosX, &bestPosY, &bestChar, &bestPathX, &bestPathY, &exitcodeWord, sizex, sizey, map, charsEN, countCharsEN, words, countGroups, maxWordLength);
+    // ^ score = 97 in 30.624s
     //findMaxWordTrie(&bestLen, &bestWord, &bestPosX, &bestPosY, &bestChar, &bestPathX, &bestPathY, &exitcodeWord, sizex, sizey, map, charsEN, countCharsEN, triesWords, maxWordLength);
-    // ^ score = 86 in 3s
+    // ^ score = 86 in 2.802s
+    //predict(&bestLen, &bestWord, &bestPosX, &bestPosY, &bestChar, &bestPathX, &bestPathY, &exitcodeWord, sizex, sizey, map, charsEN, countCharsEN, words, countGroups, maxWordLength, 0, 0);
+    // ^ score = ? in ?s
     stop = clock();
+    timeAll += stop - start;
     double tim = (double)(stop - start) / CLOCKS_PER_SEC;
-    printf("It took %2ih %2im %2is %3ims\nResults are:\n", (int)(tim/3600), (int)(tim/60)%60, (int)(tim)%60, (int)(tim*1000.0F)%1000);
+    printf("It took %2ih %2im %2is %3ims.\nResults are:\n", (int)(tim/3600), (int)(tim/60)%60, (int)(tim)%60, (int)(tim*1000.0F)%1000);
 
     if (exitcodeWord == 1) {
       printf("%i\n", bestLen);
@@ -260,7 +265,9 @@ void test2() {
   }
   stopAll = clock();
   double timAll = (double)(stopAll - startAll) / CLOCKS_PER_SEC;
-  printf("All it took %2ih %2im %2is %3ims.\n", (int)(timAll/3600), (int)(timAll/60)%60, (int)(timAll)%60, (int)(timAll*1000.0F)%1000);
+  printf("All it took %2ih %2im %2is %3ims (with GUI).\n", (int)(timAll/3600), (int)(timAll/60)%60, (int)(timAll)%60, (int)(timAll*1000.0F)%1000);
+  double timeAllSeconds = (double)timeAll / CLOCKS_PER_SEC;
+  printf("All it took %2ih %2im %2is %3ims (%i clocks, only computing).\n", (int)(timeAllSeconds/3600), (int)(timeAllSeconds/60)%60, (int)(timeAllSeconds)%60, (int)(timeAllSeconds*1000.0F)%1000, timeAll);
   printf("Score: %i\n", score);
 
   free(bestWord);

@@ -39,12 +39,20 @@ void AddWordsFromFile(char*** words, char* fileName, unsigned int* countGroups) 
 
 
 void printMap(unsigned int sizex, unsigned int sizey, char** map) {
-  for (unsigned int x = 0; x < sizex; ++x) {
+  for (unsigned int x = 0; x <= sizex; ++x) {
+    if (x == 0) printf("+-");
+    else if (x == sizex) printf("v ");
+    else printf("| ");
     for (unsigned int y = 0; y < sizey; ++y) {
-      if (map[x][y]) {
+      if (x == 0) {
+        if (y == sizey - 1) printf("> y");
+        else printf("--");
+        continue;
+      }
+      if (map[x - 1][y]) {
         printf("\033[92m");
-        //printf(num2charEN(map[x][y]));
-        wprintf(num2charRU(map[x][y]));
+        //printf(num2charEN(map[x - 1][y]));
+        wprintf(num2charRU(map[x - 1][y]));
         printf("\033[m ");
       } else {
         printf("\033[91m*\033[m ");
@@ -52,6 +60,7 @@ void printMap(unsigned int sizex, unsigned int sizey, char** map) {
     }
     printf("\n");
   }
+  printf("x\n");
 }
 
 

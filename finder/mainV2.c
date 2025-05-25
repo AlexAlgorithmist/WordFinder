@@ -74,7 +74,7 @@ void printMap(unsigned int sizex, unsigned int sizey, char** map) {
       if (map[x][y]) {
         printf("\033[92m");
         //printf(num2charEN(map[x][y]));
-        wprintf(num2charRU(map[x][y]));
+        printf(num2charRU(map[x][y]));
         printf("\033[m ");
       } else {
         printf("\033[91m*\033[m ");
@@ -217,8 +217,8 @@ void test2() {
   setRandomWord(sizex, sizey, &map, words, countGroups);
   printMap(sizex, sizey, map);
 
-  wprintf(L"Hi!\nПривет!\n");
-  wprintf(L"こんにちは!\n");
+  printf(L"Hi!\nПривет!\n");
+  printf(L"こんにちは!\n");
 
   unsigned int timeAll = 0;
 
@@ -227,9 +227,9 @@ void test2() {
     printf("Begin...\n");
     start = clock();
     //findMaxWord(&bestLen, &bestWord, &bestPosX, &bestPosY, &bestChar, &bestPathX, &bestPathY, &exitcodeWord, sizex, sizey, map, charsEN, countCharsEN, words, countGroups, maxWordLength);
-    // ^ score = 97 in 30.624s
+    // ^ score = 97 in 30.6s
     findMaxWordTrie(&bestLen, &bestWord, &bestPosX, &bestPosY, &bestChar, &bestPathX, &bestPathY, &exitcodeWord, sizex, sizey, map, charsRU, countCharsRU, triesWords, maxWordLength);
-    // ^ score = 86 in 2.802s
+    // ^ score = 86 in 2.8s
     //predict(&bestLen, &bestWord, &bestPosX, &bestPosY, &bestChar, &bestPathX, &bestPathY, &exitcodeWord, sizex, sizey, map, charsEN, countCharsEN, words, countGroups, maxWordLength, 0, 0);
     // ^ score = ? in ?s
     stop = clock();
@@ -241,10 +241,10 @@ void test2() {
       printf("%i\n", bestLen);
       printf("%i %i ", bestPosX, bestPosY);
       //printf(num2charEN(bestChar));
-      wprintf(num2charRU(bestChar));
+      printf(num2charRU(bestChar));
       printf(" (%2i)\n", bestChar);
       //for (unsigned int j = 0; j < bestLen; ++j) printf(num2charEN(bestWord[j]));
-      for (unsigned int j = 0; j < bestLen; ++j) wprintf(num2charRU(bestWord[j]));
+      for (unsigned int j = 0; j < bestLen; ++j) printf(num2charRU(bestWord[j]));
       printf(" (");
       for (unsigned int j = 0; j < bestLen; ++j) printf("%2i,", bestWord[j]);
       printf(")\n");
@@ -283,7 +283,9 @@ void test2() {
 
 
 int main() {
-  char *locale = setlocale(LC_ALL, "Russian");
+  char *locale = setlocale(LC_ALL, "Russian_Russia.65001");
+  SetConsoleOutputCP(65001);
+  SetConsoleCP(65001);
   srand((unsigned int)time(NULL));
   test2();
 }

@@ -1,7 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <locale.h>
-#include <wchar.h>
+#include <windows.h>
+//#include <wchar.h>
 #include <math.h>
 
 
@@ -63,77 +64,159 @@ char* num2charEN(int num) {
       return " ";
   }
 }
-wchar_t* num2charRU(int num) {
+char* num2charRU(int num) {
   switch (num) {
     case 1:
-      return L"а";
+      return "а";
     case 2:
-      return L"б";
+      return "б";
     case 3:
-      return L"в";
+      return "в";
     case 4:
-      return L"г";
+      return "г";
     case 5:
-      return L"д";
+      return "д";
     case 6:
-      return L"е";
+      return "е";
     case 7:
-      return L"ё";
+      return "ё";
     case 8:
-      return L"ж";
+      return "ж";
     case 9:
-      return L"з";
+      return "з";
     case 10:
-      return L"и";
+      return "и";
     case 11:
-      return L"й";
+      return "й";
     case 12:
-      return L"к";
+      return "к";
     case 13:
-      return L"л";
+      return "л";
     case 14:
-      return L"м";
+      return "м";
     case 15:
-      return L"н";
+      return "н";
     case 16:
-      return L"о";
+      return "о";
     case 17:
-      return L"п";
+      return "п";
     case 18:
-      return L"р";
+      return "р";
     case 19:
-      return L"с";
+      return "с";
     case 20:
-      return L"т";
+      return "т";
     case 21:
-      return L"у";
+      return "у";
     case 22:
-      return L"ф";
+      return "ф";
     case 23:
-      return L"х";
+      return "х";
     case 24:
-      return L"ц";
+      return "ц";
     case 25:
-      return L"ч";
+      return "ч";
     case 27:
-      return L"ш";
+      return "ш";
     case 28:
-      return L"щ";
+      return "щ";
     case 29:
-      return L"ъ";
+      return "ъ";
     case 30:
-      return L"ы";
+      return "ы";
     case 31:
-      return L"ь";
+      return "ь";
     case 32:
-      return L"э";
+      return "э";
     case 33:
-      return L"ю";
+      return "ю";
     case 34:
-      return L"я";
+      return "я";
     default:
-      return L" ";
+      return " ";
   }
+}
+char char2numRU(char* ch) {
+  //printf("%i", ch[0]);
+  if (ch[0] != -48 && ch[0] != -47) return 0;
+  switch (ch[1]) {
+    case -80:
+      return 1;
+    case -79:
+      return 2;
+    case -78:
+      return 3;
+    case -77:
+      return 4;
+    case -76:
+      return 5;
+    case -75:
+      return 6;
+    case -111:
+      return 7;
+    case -74:
+      return 8;
+    case -73:
+      return 9;
+    case -72:
+      return 10;
+    case -71:
+      return 11;
+    case -70:
+      return 12;
+    case -69:
+      return 13;
+    case -68:
+      return 14;
+    case -67:
+      return 15;
+    case -66:
+      return 16;
+    case -65:
+      return 17;
+    case -128:
+      return 18;
+    case -127:
+      return 19;
+    case -126:
+      return 20;
+    case -125:
+      return 21;
+    case -124:
+      return 22;
+    case -123:
+      return 23;
+    case -122:
+      return 24;
+    case -121:
+      return 25;
+    case -120:
+      return 27;
+    case -119:
+      return 28;
+    case -118:
+      return 29;
+    case -117:
+      return 30;
+    case -116:
+      return 31;
+    case -115:
+      return 32;
+    case -114:
+      return 33;
+    case -113:
+      return 34;
+    default:
+      return 0;
+  }
+}
+unsigned int chars2wordRU(char** word, char* chars) {
+  unsigned int i = 0;
+  while (chars[i * 2] != 0) {
+    (*word)[i] = char2numRU(chars + i * 2);
+    ++i;
+  }
+  return i;
 }
 double random() {return (double)rand()/(double)(RAND_MAX);}
 
@@ -285,6 +368,176 @@ void excludeWordTrie(int *exitcode, char* word, unsigned int thisWordLength, str
   return;
 }
 
+int seekWordTrie(int *exitcode, char* word, unsigned int thisWordLength, struct TrieNode** words) {
+  *exitcode = 0;
+  struct TrieNode* currentNode = &((*words)->children[thisWordLength]);
+  for (unsigned int k = 0; k < thisWordLength; ++k) {
+    if (currentNode->hasChildren == 0) {
+      *exitcode = k + 2;
+      return 0;
+    }
+    currentNode = &(currentNode->children[word[k]]);
+  }
+  *exitcode = 1;
+  return 1;
+}
+int isValidWord(int *exitcode, char* word, unsigned int wordLength, unsigned int addx, unsigned int addy, unsigned int sizex, unsigned int sizey, char** map) {
+  unsigned int* posesX = (unsigned int*)malloc(sizex * sizey * sizeof(unsigned int));
+  unsigned int* posesY = (unsigned int*)malloc(sizex * sizey * sizeof(unsigned int));
+  unsigned int ind = 0;
+  char** visited = (char**)malloc(sizex * sizeof(char*));
+  for (unsigned int x = 0; x < sizex; ++x) {
+    visited[x] = (char*)malloc(sizey * sizeof(char));
+  }
+  char first = word[0];
+
+  for (unsigned int x = 0; x < sizex; ++x) {
+    for (unsigned int y = 0; y < sizey; ++y) {
+      //printf("%i, %i: %i\n", x, y, map[x][y]);
+      if (map[x][y] == first) {
+        //printf("this!!!\n");
+        posesX[ind] = x;
+        posesY[ind] = y;
+        ++ind;
+      }
+    }
+  }
+
+  if (ind == 0) {
+    *exitcode = 0;
+    free(posesX); free(posesY); for (unsigned int x = 0; x < sizex; ++x) free(visited[x]); free(visited);
+    return 0;
+  }
+
+  unsigned int queueSize = wordLength * wordLength;
+  unsigned int queueStart;
+  unsigned int queueEnd;
+  unsigned int* queueX = (unsigned int*)malloc(queueSize * sizeof(unsigned int));
+  unsigned int* queueY = (unsigned int*)malloc(queueSize * sizeof(unsigned int));
+  unsigned int* queueIdx = (unsigned int*)malloc(queueSize * sizeof(unsigned int));
+  unsigned int** queuePathX = (unsigned int**)malloc(queueSize * sizeof(unsigned int*));
+  unsigned int** queuePathY = (unsigned int**)malloc(queueSize * sizeof(unsigned int*));
+  for (unsigned int i = 0; i < queueSize; ++i) {
+    queuePathX[i] = (unsigned int*)malloc(wordLength * sizeof(unsigned int));
+    queuePathY[i] = (unsigned int*)malloc(wordLength * sizeof(unsigned int));
+  }
+  --wordLength;
+
+  for (unsigned int i = 0; i < ind; ++i) {
+    for (unsigned int x = 0; x < sizex; ++x) {
+      for (unsigned int y = 0; y < sizey; ++y) {
+        visited[x][y] = 0;
+        if (map[x][y] == 0) {
+          visited[x][y] = 1;
+        }
+      }
+    }
+    unsigned int x = posesX[i];
+    unsigned int y = posesY[i];
+    queueStart = 0;
+    queueEnd = 0;
+    ++queueEnd;
+    queueX[0] = x;
+    queueY[0] = y;
+    queueIdx[0] = 0;
+    unsigned int thisX;
+    unsigned int thisY;
+    unsigned int thisIdx;
+    unsigned int* thisPathX;
+    unsigned int* thisPathY;
+    while (queueStart != queueEnd) {
+      thisX = queueX[queueStart];
+      thisY = queueY[queueStart];
+      if (visited[thisX][thisY]) {
+        queueStart = (queueStart + 1) % queueSize;
+        continue;
+      }
+      visited[thisX][thisY] = 1;
+      thisIdx = queueIdx[queueStart];
+      thisPathX = queuePathX[queueStart];
+      thisPathY = queuePathY[queueStart];
+      thisPathX[thisIdx] = thisX;
+      thisPathY[thisIdx] = thisY;
+      //printf("%i, %i: %i (%i/%i)\n", thisX, thisY, map[thisX][thisY], thisIdx, wordLength);
+      if (thisIdx == wordLength) {
+        //printf("1\n");
+        char add = 0;
+        for (unsigned int j = 0; j <= wordLength; ++j) {
+          //printf("%i, %i (%i, %i)\n", thisPathX[j], thisPathY[j], addx, addy);
+          if (thisPathX[j] == addx && thisPathY[j] == addy) {
+            add = 1;
+            break;
+          }
+        }
+        if (add) {
+          *exitcode = 1;
+          goto cleanup;
+        }
+        continue;
+      }
+      ++thisIdx;
+      unsigned int newx, newy;
+      newx = thisX + 1;
+      if (newx < sizex) {
+        if (map[newx][thisY] == word[thisIdx]) {
+          queueX[queueEnd] = newx;
+          queueY[queueEnd] = thisY;
+          queueIdx[queueEnd] = thisIdx;
+          for (unsigned int j = 0; j < thisIdx; ++j) {
+            queuePathX[queueEnd][j] = thisPathX[j];
+            queuePathY[queueEnd][j] = thisPathY[j];
+          }
+          queueEnd = (queueEnd + 1) % queueSize;
+        }
+      }
+      newy = thisY + 1;
+      if (newy < sizey) {
+        if (map[thisX][newy] == word[thisIdx]) {
+          queueX[queueEnd] = thisX;
+          queueY[queueEnd] = newy;
+          queueIdx[queueEnd] = thisIdx;
+          for (unsigned int j = 0; j < thisIdx; ++j) {
+            queuePathX[queueEnd][j] = thisPathX[j];
+            queuePathY[queueEnd][j] = thisPathY[j];
+          }
+          queueEnd = (queueEnd + 1) % queueSize;
+          }
+      }
+      if (thisX > 0) {
+        newx = thisX - 1;
+        if (map[newx][thisY] == word[thisIdx]) {
+          queueX[queueEnd] = newx;
+          queueY[queueEnd] = thisY;
+          queueIdx[queueEnd] = thisIdx;
+          for (unsigned int j = 0; j < thisIdx; ++j) {
+            queuePathX[queueEnd][j] = thisPathX[j];
+            queuePathY[queueEnd][j] = thisPathY[j];
+          }
+          queueEnd = (queueEnd + 1) % queueSize;
+        }
+      }
+      if (thisY > 0) {
+        newy = thisY - 1;
+        if (map[thisX][newy] == word[thisIdx]) {
+          queueX[queueEnd] = thisX;
+          queueY[queueEnd] = newy;
+          queueIdx[queueEnd] = thisIdx;
+          for (unsigned int j = 0; j < thisIdx; ++j) {
+            queuePathX[queueEnd][j] = thisPathX[j];
+            queuePathY[queueEnd][j] = thisPathY[j];
+          }
+          queueEnd = (queueEnd + 1) % queueSize;
+        }
+      }
+    }
+  }
+
+  *exitcode = 0;
+  cleanup:
+  free(queueX); free(queueY); free(queueIdx); for (unsigned int i = 0; i < queueSize; ++i) {free(queuePathX[i]); free(queuePathY[i]);} free(queuePathX); free(queuePathY);
+  free(posesX); free(posesY); for (unsigned int x = 0; x < sizex; ++x) free(visited[x]); free(visited);
+}
+
 
 void setRandomWord(unsigned int sizex, unsigned int sizey, char*** map, char** words, unsigned int countWordGroups) {
   for (unsigned int groupId = 0; groupId < countWordGroups; ++groupId) {
@@ -297,6 +550,17 @@ void setRandomWord(unsigned int sizex, unsigned int sizey, char*** map, char** w
     }
     break;
   }
+}
+
+
+unsigned int countFree(unsigned int sizex, unsigned int sizey, char** map) {
+  unsigned int result = 0;
+  for (unsigned int x = 0; x < sizex; ++x) {
+    for (unsigned int y = 0; y < sizey; ++y) {
+      if (map[x][y] == 0) ++result;
+    }
+  }
+  return result;
 }
 
 
@@ -907,7 +1171,6 @@ void findPathTrie(char* exitcode, struct TrieNode* words, unsigned int wordLengt
             (*wordRes)[j] = map[thisElement.pathX[j]][thisElement.pathY[j]];
           }
           goto cleanup;
-          return;
         }
         queue.start = (queue.start + 1) % queue.size;
         continue;
@@ -993,10 +1256,6 @@ void findPathTrie(char* exitcode, struct TrieNode* words, unsigned int wordLengt
     }
   }
   *exitcode = 0;
-
-  goto cleanup;
-  return;
-
   cleanup:
   for (unsigned int i = 0; i < queue.size; ++i) {
     free(queue.elements[i].pathX);
@@ -1005,21 +1264,7 @@ void findPathTrie(char* exitcode, struct TrieNode* words, unsigned int wordLengt
     free(queue.elements[i].visited);
   }
   free(queue.elements);
-  return;
-  cleanupSafe:
-  if (queue.elements) {
-    for (unsigned int i = 0; i < queue.size; ++i) {
-      if (queue.elements[i].pathX) free(queue.elements[i].pathX);
-      if (queue.elements[i].pathY) free(queue.elements[i].pathY);
-      if (queue.elements[i].visited) {
-        for (unsigned int x = 0; x < sizex; ++x) {
-          if (queue.elements[i].visited[x]) free(queue.elements[i].visited[x]);
-        }
-        free(queue.elements[i].visited);
-      }
-    }
-    free(queue.elements);
-  }
+  free(posesX); free(posesY);
 }
 
 
